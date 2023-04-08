@@ -1,3 +1,5 @@
+## Socket Programming
+
 In this assignment, you’ll write a client that will use sockets to communicate with a server that you will also write. 
 
 Here’s what your client and server should do:
