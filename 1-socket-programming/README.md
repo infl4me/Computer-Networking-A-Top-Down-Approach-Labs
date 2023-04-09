@@ -1,4 +1,4 @@
-## Socket Programming
+## Socket Programming Lab
 
 In this assignment, you’ll write a client that will use sockets to communicate with a server that you will also write. 
 
