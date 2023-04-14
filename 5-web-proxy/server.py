@@ -1,6 +1,8 @@
 from socket import *
 import sys
 
+MAX_RESPONSE_SIZE = 1024 * 1024 * 5
+
 if len(sys.argv) <= 1:
   print(
     'Usage : "python ProxyServer.py server_ip"\n[server_ip : It is the IP Address Of Proxy Server')
@@ -22,38 +24,43 @@ while 1:
   print('message split: ', message.split()[1])
   filename = message.split()[1].partition("/")[2]
   print('filename: ', filename)
-  fileExist = "false"
-  filetouse = "/" + filename
-  print('filetouse: ', filetouse)
+
+  cacheFilePath = "./cache/" + filename
+  isCached = False
+
   try:
     # Check wether the file exist in the cache
-    f = open(filetouse[1:], "r")
-    outputdata = f.readlines()
-    fileExist = "true"
-    # ProxyServer finds a cache hit and generates a response message
-    tcpCliSock.send("HTTP/1.0 200 OK\r\n".encode())
-    tcpCliSock.send("Content-Type:text/html\r\n".encode())
-    for i in range(0, len(outputdata)):
-      tcpCliSock.send(outputdata[i].encode())
-      print('Read from cache')
-  # Error handling for file not found in cache
+    file = open(cacheFilePath, "r")
+    isCached = True
+
+    print('Reading from cache...')
+
+    cacheData = file.read(MAX_RESPONSE_SIZE)
+    file.close()
+
+    tcpCliSock.send(cacheData.encode())
   except IOError:
-    if fileExist == "false":
-      # Create a socket on the proxyserver
-      # c = socket(AF_INET, SOCK_STREAM)
-      hostn = filename.replace("www.", "", 1)
-      print('hostn', hostn)
+    if isCached == False:
       try:
+        hostn = filename.replace("www.", "", 1)
+        print('hostn', hostn)
         c = socket(AF_INET, SOCK_STREAM)
         c.connect((hostn, 80))
 
-        http_request = "GET / HTTP/1.0\r\n\r\n"
-        print('request', http_request)
-        c.send(http_request.encode())
-        response = c.recv(1024 * 1024 * 5).decode()
+        httpRequest = "GET / HTTP/1.0\r\n\r\n"
+        print('request', httpRequest)
+        c.send(httpRequest.encode())
+        raw_response = c.recv(MAX_RESPONSE_SIZE)
+
+        print('Writing to cache...')
+        cacheFile = open(cacheFilePath, "wb")
+        cacheFile.write(raw_response)
+        cacheFile.close()
+
+        response = raw_response.decode()
         print('RESPONSE: ', response, len(response))
 
-        tcpCliSock.send(response.encode())
+        tcpCliSock.send(raw_response)
 
         c.close()
       except Exception as inst:
