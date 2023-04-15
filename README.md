@@ -7,6 +7,7 @@ Current repository contains my solutions for labs of the Computer Networking: A 
 - **Webserver.** A simple Web server that is capable of processing only one request
 - **UDP pinger.** A client ping program
 - **SMTP (Mail client).** A simple mail client that sends e-mail to any recipient
+- **Web Proxy.** A simple web proxy server with caching
 
 ## Completed wireshark labs:
 - **HTTP.** In this lab, we’ll explore several aspects of the HTTP protocol: the basic GET/reply interaction, HTTP message formats, retrieving large HTML files, retrieving HTML files with embedded URLs, persistent and non-persistent connections, and HTTP authentication and security
