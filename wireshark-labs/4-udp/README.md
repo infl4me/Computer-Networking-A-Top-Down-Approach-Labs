@@ -1,0 +1,1 @@
+In this short lab, you’ll do a packet capture and analysis of your favorite application that uses UDP (for example, DNS or a multimedia application such as Skype). As we learned in Section 3.3, UDP is a simple, no-frills transport protocol. In this lab, you’ll investigate the header fields in the UDP segment as well as the checksum calculation.
