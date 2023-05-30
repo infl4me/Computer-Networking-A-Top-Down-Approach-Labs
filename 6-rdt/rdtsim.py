@@ -112,13 +112,17 @@ class EntityA:
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
     def output(self, message):
-        to_layer3(self, Pkt(0, 0, 0, message.data))
+        seqnum = 0
+        acknum = 0
+        checksum = get_checksum(seqnum, acknum, message.data)
+        to_layer3(self, Pkt(seqnum, acknum, checksum, message.data))
         pass
 
     # Called from layer 3, when a packet arrives for layer 4 at EntityA.
     # The argument `packet` is a Pkt containing the newly arrived packet.
     def input(self, packet):
-        to_layer5(self, Msg(packet.payload))
+        if check_checksum(packet):
+            to_layer5(self, Msg(packet.payload))
         pass
 
     # Called when A's timer goes off.
@@ -143,6 +147,13 @@ class EntityB:
     # Called when B's timer goes off.
     def timer_interrupt(self):
         pass
+
+def get_checksum(seqnum, acknum, payload):
+    return seqnum + acknum + sum(payload)
+
+def check_checksum(packet):
+    return packet.checksum == get_checksum(packet.seqnum, packet.acknum, packet.payload)
+    
 
 ###############################################################################
 
