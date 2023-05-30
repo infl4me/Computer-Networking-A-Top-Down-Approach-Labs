@@ -106,16 +106,19 @@ class EntityA:
     # zero and seqnum_limit-1, inclusive.  E.g., if seqnum_limit is 16, then
     # all seqnums must be in the range 0-15.
     def __init__(self, seqnum_limit):
+        self.seqnum_limit = seqnum_limit
         pass
 
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
     def output(self, message):
+        to_layer3(self, Pkt(0, 0, 0, message.data))
         pass
 
     # Called from layer 3, when a packet arrives for layer 4 at EntityA.
     # The argument `packet` is a Pkt containing the newly arrived packet.
     def input(self, packet):
+        to_layer5(self, Msg(packet.payload))
         pass
 
     # Called when A's timer goes off.
@@ -128,11 +131,13 @@ class EntityB:
     #
     # See comment above `EntityA.__init__` for the meaning of seqnum_limit.
     def __init__(self, seqnum_limit):
+        self.seqnum_limit = seqnum_limit
         pass
 
     # Called from layer 3, when a packet arrives for layer 4 at EntityB.
     # The argument `packet` is a Pkt containing the newly arrived packet.
     def input(self, packet):
+        to_layer5(self, Msg(packet.payload))
         pass
 
     # Called when B's timer goes off.
