@@ -106,68 +106,82 @@ class EntityA:
     # zero and seqnum_limit-1, inclusive.  E.g., if seqnum_limit is 16, then
     # all seqnums must be in the range 0-15.
     def __init__(self, seqnum_limit):
+        self.buffer = []
         self.seqnum_limit = seqnum_limit
-        self.state = 'wait_0_call'
+        self.base = 0
+        self.nextseqnum = 0
+        self.window = seqnum_limit//2
+        self.lost = 0
+        self.timer = False
         pass
 
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
     def output(self, message):
-        if self.state == 'wait_0_call':
-            log(self, 'received message wait_0_call')
-            self.packet = build_packet(0, 0, message.data)
-            self.send_packet(self.packet)
-            self.state = 'wait_0_ack'
-        elif self.state == 'wait_1_call':
-            log(self, 'received message wait_1_call')
-            self.packet = build_packet(1, 0, message.data)
-            self.send_packet(self.packet)
-            self.state = 'wait_1_ack'
+        if self.length() < self.window:
+            if len(self.buffer) == self.seqnum_limit:
+                self.buffer[self.nextseqnum] = build_packet(self.nextseqnum, 0, message.data)
+            else:
+                self.buffer.insert(self.nextseqnum, build_packet(self.nextseqnum, 0, message.data))
+
+            self.send_packet(self.buffer[self.nextseqnum])
+            self.start_timer()
+            self.nextseqnum = (self.nextseqnum + 1) % self.seqnum_limit
         else:
-            log(self, 'layer 5 drop packet!!!')
-        pass
+            self.lost += 1
+
+    def start_timer(self):
+        if self.timer == True:
+            stop_timer(self)
+        start_timer(self, 15)
+        self.timer = True
+
+    def stop_timer(self):
+        if self.timer == True:
+            stop_timer(self)
+        self.timer = False
+
+    # length of sent packets that waiting for acks
+    def length(self):
+        if self.nextseqnum < self.base:
+            return self.nextseqnum + self.seqnum_limit - self.base
+        else:
+            return self.nextseqnum - self.base
 
     # Called from layer 3, when a packet arrives for layer 4 at EntityA.
     # The argument `packet` is a Pkt containing the newly arrived packet.
     def input(self, packet):
-        if self.state == 'wait_0_ack':
-            stop_timer(self)
-            log(self, 'received wait_0_ack')
-            if corrupt(packet) or not is_ack(packet) or packet.seqnum == 1:
-                log(self, 'wait_0_ack is corrupt, resending...')
-                self.send_packet(self.packet)
+        if not corrupt(packet) and packet.acknum == ACK_VAL:
+            shift = packet.seqnum + self.seqnum_limit - self.base + 1 if packet.seqnum < self.base else packet.seqnum - self.base + 1
+            if shift > self.length():
+                # ignore ack
+                return
+
+            self.base = (self.base + shift) % self.seqnum_limit
+            if self.length() == 0:
+                self.stop_timer()
             else:
-                self.state = 'wait_1_call'
-                log(self, 'state from wait_0_ack to wait_1_call')
-        elif self.state == 'wait_1_ack':
-            stop_timer(self)
-            log(self, 'received wait_1_ack')
-            if corrupt(packet) or not is_ack(packet) or packet.seqnum == 0:
-                log(self, 'wait_1_ack is corrupt, resending...')
-                self.send_packet(self.packet)
-            else:
-                self.state = 'wait_0_call'
-                log(self, 'state from wait_1_ack to wait_0_call')
+                self.start_timer()
         else:
-            log(self, 'layer 3 drop packet!!!')
+            if self.timer == False:
+                self.start_timer()
+        pass
+
+    def resend_packets(self):
+        length = self.length()
+        for i in range(0, length):
+            self.send_packet(self.buffer[(self.base + i) % self.seqnum_limit])
+        self.start_timer()
         pass
 
     # Called when A's timer goes off.
     def timer_interrupt(self):
-        if self.state == 'wait_0_ack':
-            log(self, 'timeout... resending wait_0_ack')
-            self.send_packet(self.packet)
-        elif self.state == 'wait_1_ack':
-            log(self, 'timeout... resending wait_1_ack')
-            self.send_packet(self.packet)
-        else:
-            log(self, 'timer unreachable code!!!')
+        self.timer = False
+        self.resend_packets()
         pass
 
     def send_packet(self, packet):
-        log(self, 'sending packet...')
         to_layer3(self, packet)
-        start_timer(self, 30)
 
 class EntityB:
     # The following method will be called once (only) before any other
@@ -176,34 +190,23 @@ class EntityB:
     # See comment above `EntityA.__init__` for the meaning of seqnum_limit.
     def __init__(self, seqnum_limit):
         self.seqnum_limit = seqnum_limit
-        self.state = 'wait_0'
+        self.expectedseqnum = 0
+        self.sent_packets = 0
         pass
 
     # Called from layer 3, when a packet arrives for layer 4 at EntityB.
     # The argument `packet` is a Pkt containing the newly arrived packet.
     def input(self, packet):
-        if self.state == 'wait_0':
-            log(self, 'received wait_0')
-            if corrupt(packet) or packet.seqnum == 1:
-                log(self, 'packet is corrupt, resending ACK...')
-                to_layer3(self, build_packet(1, ACK_VAL))
-            else:
-                to_layer5(self, Msg(packet.payload))
-                log(self, 'send ACK to A')
-                to_layer3(self, build_packet(0, ACK_VAL))
-                self.state = 'wait_1'
-        elif self.state == 'wait_1':
-            log(self, 'received wait_1')
-            if corrupt(packet) or packet.seqnum == 0:
-                log(self, 'packet is corrupt, resending ACK...')
-                to_layer3(self, build_packet(0, ACK_VAL))
-            else:
-                to_layer5(self, Msg(packet.payload))
-                log(self, 'send ACK to A')
-                to_layer3(self, build_packet(1, ACK_VAL))
-                self.state = 'wait_0'
+        if not corrupt(packet) and packet.seqnum == self.expectedseqnum:
+            log(self, 'packet received: ' + str(packet.seqnum))
+            to_layer5(self, Msg(packet.payload))
+            self.sent_packets += 1
+            to_layer3(self, build_packet(self.expectedseqnum, ACK_VAL))
+            self.expectedseqnum = (self.expectedseqnum + 1) % self.seqnum_limit
         else:
-            log(self, 'drop packet!!!')
+            if self.sent_packets > 0:
+                prev_seqnum = self.expectedseqnum - 1 if self.expectedseqnum != 0 else self.seqnum_limit - 1
+                to_layer3(self, build_packet(prev_seqnum, ACK_VAL))
         pass
 
     # Called when B's timer goes off.
@@ -225,7 +228,7 @@ def build_packet(seqnum, acknum, payload = b'\0' * (Msg.MSG_SIZE)):
     checksum = get_checksum(seqnum, acknum, payload)
     return Pkt(seqnum, acknum, checksum, payload)
 
-LOG_ENABLED = 1
+LOG_ENABLED = 0
 def log(entity, message):
     if LOG_ENABLED:
         print(f'[{entity.__class__.__name__}] > {message}')
