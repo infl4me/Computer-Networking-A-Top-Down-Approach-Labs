@@ -18,3 +18,4 @@ translates Internet hostnames to IP addresses
 - **TCP.** Analyzing the client- and server-side traces to explore aspects of TCP
 - **UDP.** In this short lab, you’ll do a packet capture and analysis of your favorite application that uses UDP
 - **IP.** In this lab, we’ll investigate the celebrated IP protocol, focusing on the IPv4 and IPv6 datagram
+- **Ethernet.** In this lab, we’ll investigate the Ethernet protocol and the ARP protocol
